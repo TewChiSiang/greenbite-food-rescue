@@ -1,4 +1,4 @@
-# green_bite
+# GreenBite
 
 A new Flutter project.
 

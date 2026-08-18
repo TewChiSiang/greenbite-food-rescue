@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // <-- NEW IMPORT
+import 'package:shared_preferences/shared_preferences.dart'; 
+import 'package:cloud_firestore/cloud_firestore.dart'; 
 import '../services/auth_service.dart';
 import 'register_screen.dart';
 import 'home_screen.dart';
 import 'vendor_dashboard.dart';
 import 'forgot_password_screen.dart';
+import 'admin_dashboard_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -20,16 +22,14 @@ class _LoginScreenState extends State<LoginScreen> {
   final AuthService _authService = AuthService();
   bool _isLoading = false;
 
-  // --- NEW: REMEMBER ME STATE ---
   bool _rememberMe = false;
 
   @override
   void initState() {
     super.initState();
-    _loadSavedCredentials(); // Load credentials when screen opens
+    _loadSavedCredentials(); 
   }
 
-  // --- NEW: LOAD SAVED CREDENTIALS ---
   Future<void> _loadSavedCredentials() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
@@ -42,7 +42,6 @@ class _LoginScreenState extends State<LoginScreen> {
     });
   }
 
-  // --- NEW: SAVE CREDENTIALS FUNCTION ---
   Future<void> _handleRememberMe() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     if (_rememberMe) {
@@ -81,8 +80,16 @@ class _LoginScreenState extends State<LoginScreen> {
     );
 
     String? role;
+    String accountStatus = 'Active'; 
+
+    // Fetch the user document directly to check for role AND status
     if (user != null) {
-      role = await _authService.getUserRole(user.uid);
+      DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection('Users').doc(user.uid).get();
+      if (userDoc.exists) {
+        var userData = userDoc.data() as Map<String, dynamic>;
+        role = userData['role'];
+        accountStatus = userData.containsKey('accountStatus') ? userData['accountStatus'] : 'Active';
+      }
     }
 
     if (!mounted) return;
@@ -92,7 +99,20 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     if (user != null && role != null) {
-      // Save credentials upon successful login
+      
+      // --- NEW: ACCOUNT STATUS CHECKS ---
+      if (accountStatus == 'Rejected') {
+        await _authService.signOut(); 
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: Colors.red,
+            content: Text('Login failed: Your vendor application was rejected.'),
+          ),
+        );
+        return; // Stop the routing process
+      }
+
+      // If they passed the checks, save credentials and log them in
       await _handleRememberMe();
 
       if (!mounted) return;
@@ -103,12 +123,18 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       );
 
-      if (role == 'Consumer') {
+      // --- ROUTING LOGIC ---
+      if (role.toLowerCase() == 'admin') {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const AdminDashboardScreen()),
+        );
+      } else if (role.toLowerCase() == 'consumer') {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const HomeScreen()),
         );
-      } else if (role == 'Vendor') {
+      } else if (role.toLowerCase() == 'vendor') {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const VendorDashboard()),
@@ -189,7 +215,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // Left side: Remember Me
                     Row(
                       children: [
                         SizedBox(
@@ -213,11 +238,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       ],
                     ),
 
-                    // Right side: Forgot Password
                     TextButton(
                       style: TextButton.styleFrom(
-                        padding: EdgeInsets
-                            .zero, // Removes default button padding to align perfectly
+                        padding: EdgeInsets.zero, 
                         minimumSize: Size.zero,
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),

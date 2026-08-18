@@ -1,4 +1,4 @@
-import 'dart:typed_data'; // Replaced dart:io with dart:typed_data
+import 'dart:typed_data'; 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -32,7 +32,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // --- WEB-SAFE IMAGE UPLOAD FIX ---
   Future<void> _changeProfilePhoto() async {
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(
@@ -55,10 +54,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           .child('profile_images')
           .child('$uid.jpg');
 
-      // Read as bytes for web compatibility
       Uint8List imageBytes = await image.readAsBytes();
       
-      // Use putData instead of putFile
       await ref.putData(
         imageBytes, 
         SettableMetadata(contentType: 'image/jpeg')
@@ -118,7 +115,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
             onPressed: () async {
-              Navigator.pop(dialogContext); // Close dialog synchronously
+              Navigator.pop(dialogContext); 
               String result = await _authService.resetPassword(
                 currentUser!.email!,
               );
@@ -296,6 +293,104 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // --- NEW: CONTACT US DIALOG ---
+  void _showContactUsDialog(String userEmail) {
+    String selectedType = 'General';
+    final TextEditingController descController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          // FIX: Renamed 'context' to 'innerContext' to prevent shadowing
+          builder: (innerContext, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Text('Contact Support'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedType,
+                      decoration: const InputDecoration(
+                        labelText: 'Issue Type',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: ['General', 'Bug Report', 'Feature Request']
+                          .map((type) => DropdownMenuItem(value: type, child: Text(type)))
+                          .toList(),
+                      onChanged: (val) {
+                        if (val != null) {
+                          setDialogState(() => selectedType = val);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: descController,
+                      maxLines: 4,
+                      decoration: const InputDecoration(
+                        labelText: 'Describe your issue or feedback...',
+                        alignLabelWithHint: true,
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.deepOrange),
+                  onPressed: () async {
+                    if (descController.text.trim().isEmpty) return;
+                    
+                    Navigator.pop(dialogContext); // Close dialog
+
+                    try {
+                      // Submit to Feedback Collection for Admin to see
+                      await FirebaseFirestore.instance.collection('Feedback').add({
+                        'uid': currentUser!.uid,
+                        'email': userEmail,
+                        'reportType': selectedType,
+                        'description': descController.text.trim(),
+                        'status': 'Open',
+                        'timestamp': FieldValue.serverTimestamp(),
+                      });
+
+                      if (!mounted) return;
+                      // This now safely uses the outer context!
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Feedback sent! Our admin will review it soon.'),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                    } catch (e) {
+                      if (!mounted) return;
+                      // This now safely uses the outer context!
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Failed to send feedback: $e'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  },
+                  child: const Text('Submit', style: TextStyle(color: Colors.white)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (currentUser == null) {
@@ -410,6 +505,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         onTap: () => _showEditProfileDialog(name),
                       ),
                       const Divider(),
+
+                      // --- NEW: CONTACT US BUTTON ---
+                      ListTile(
+                        leading: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.shade50,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.support_agent, color: Colors.blue),
+                        ),
+                        title: const Text(
+                          'Contact Support',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                        onTap: () => _showContactUsDialog(email),
+                      ),
+                      const Divider(),
+
                       ListTile(
                         leading: Container(
                           padding: const EdgeInsets.all(8),

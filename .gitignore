@@ -52,7 +52,7 @@ app.*.map.json
 .DS_Store
 .atom/
 .buildlog/
-.history
+.history    
 .svn/
 
 # Environments

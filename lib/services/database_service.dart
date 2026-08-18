@@ -119,7 +119,6 @@ class DatabaseService {
     required String consumerId,
     required String vendorId,
     required int quantityToReserve,
-    required double totalPrice,
     required String listingTitle,
     required String pickupWindow,
     required String imageUrl,
@@ -155,7 +154,6 @@ class DatabaseService {
           'listingID': listingId,
           'listingTitle': listingTitle,
           'quantity': quantityToReserve,
-          'totalPrice': totalPrice,
           'pickupWindow': pickupWindow,
           'imageUrl': imageUrl,
           'status': 'Pending', // Pending means waiting for pickup
@@ -289,5 +287,64 @@ class DatabaseService {
         .where('vendorId', isEqualTo: vendorId)
         // REMOVED .orderBy('createdAt') to avoid index error
         .snapshots();
+  }
+
+  // ==========================================
+  // ADMIN FUNCTIONS (UPDATED)
+  // ==========================================
+
+  // 1. Get ALL Vendors (We will filter 'Pending' ones in the UI)
+  Stream<QuerySnapshot> getAllVendors() {
+    return _firestore
+        .collection('Users')
+        .where('role', whereIn: ['Vendor', 'vendor']) // Covers both capitalizations
+        .snapshots();
+  }
+
+  // 2. Get All Users (Consumers and Vendors)
+  Stream<QuerySnapshot> getAllUsers() {
+    return _firestore
+        .collection('Users')
+        .where('role', whereIn: ['Consumer', 'Vendor', 'consumer', 'vendor']) // Covers all
+        .snapshots();
+  }
+
+  // 3. Update User/Vendor Status
+  Future<void> updateUserStatus(String uid, String newStatus) async {
+    try {
+      await _firestore.collection('Users').doc(uid).update({
+        'accountStatus': newStatus,
+      });
+    } catch (e) {
+      debugPrint('Error updating user status: $e');
+    }
+  }
+
+  // 4. Get Feedback Tickets
+  Stream<QuerySnapshot> getFeedbackTickets() {
+    return _firestore
+        .collection('Feedback')
+        .orderBy('timestamp', descending: true)
+        .snapshots();
+  }
+
+  // 5. Update Feedback Status
+  Future<void> updateFeedbackStatus(String feedbackId, String status) async {
+    try {
+      await _firestore.collection('Feedback').doc(feedbackId).update({
+        'status': status,
+      });
+    } catch (e) {
+      debugPrint('Error updating feedback: $e');
+    }
+  }
+
+  // 6. Delete User Document (For Admin User Management)
+  Future<void> deleteUserDocument(String uid) async {
+    try {
+      await _firestore.collection('Users').doc(uid).delete();
+    } catch (e) {
+      debugPrint('Error deleting user: $e');
+    }
   }
 }

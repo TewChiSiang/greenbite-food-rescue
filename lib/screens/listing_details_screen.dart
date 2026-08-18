@@ -52,10 +52,6 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
     setState(() => _isLoading = true);
 
     String consumerId = FirebaseAuth.instance.currentUser!.uid;
-    
-    // NOTE: If you fully removed prices for FYP2, you may want to set unitPrice and totalPrice to 0.0
-    double unitPrice = widget.listing['price'].toDouble();
-    double totalPrice = unitPrice * _orderQuantity;
 
     var dataMap = widget.listing.data() as Map<String, dynamic>;
     String imageUrl = dataMap.containsKey('imageUrl') ? dataMap['imageUrl'] : '';
@@ -65,7 +61,6 @@ class _ListingDetailsScreenState extends State<ListingDetailsScreen> {
       consumerId: consumerId,
       vendorId: widget.listing['vendorID'],
       quantityToReserve: _orderQuantity,
-      totalPrice: totalPrice,
       listingTitle: widget.listing['title'],
       pickupWindow: widget.listing['pickupWindow'],
       imageUrl: imageUrl, 
